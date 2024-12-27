@@ -87,7 +87,7 @@ int main(int argc, char* argv[]) {
     std::cout << ' ' << format.first;
   }
   std::cout << '\n';
-  std::cout << "Also can use format `RBG` for compression testing.\n";
+  std::cout << "Also can use format `RGB` instead.\n";
   std::cout << "Actions:";
   for (auto const& action : action_map) {
     std::cout << ' ' << action.first;

@@ -1,10 +1,24 @@
 # yuv-manipulations-1
 
+Build:
+```
+mkdir -p build
+cd build
+cmake ..
+cmake --build .
+cd ..
+```
+or
+```
+make
+```
+
+Run:
 ```
 BMP /path/to/file.bmp format [output_name] [actions...]
 ```
 
-Note: ARGB or XRBG only.
+Note: `ARGB` or `XRBG` only.
 
 Example:
 ```
@@ -21,7 +35,7 @@ Parameters for `DCT`: quality for each channel. For example: `DCT:50,50,50`. `DC
 
 Can't dump/save for now.
 
-Check output for:
+Check console output for:
 - Original RGB size
 - Original RGB size without alpha channel
-- Size after manipulations.
+- Sizes after manipulations.

@@ -1,0 +1,5 @@
+.vscode/*
+/trash/*
+/build/*
+*.o
+/YUVExp

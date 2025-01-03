@@ -1,24 +1,26 @@
 # yuv-manipulations-1
 
+Requirements: SDL3, OpenMP, the compiler with C++17 support, cmake or make.
+
 Build:
 ```
 mkdir -p build
 cd build
-cmake ..
+cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
 cmake --build .
 cd ..
 ```
-or
+or make with gcc:
 ```
 make
 ```
 
-Run:
+Run with arguments:
 ```
 BMP /path/to/file.bmp format [output_name] [actions...]
 ```
 
-Note: `ARGB` or `XRBG` only.
+Note: BMP `ARGB` or `XRBG` only.
 
 Example:
 ```
@@ -31,11 +33,14 @@ Also can use format `RBG`.
 
 Actions: `DCT` `show`
 
-Parameters for `DCT`: quality for each channel. For example: `DCT:50,50,50`. `DCT` only works for `IYUV`.
-
-Can't dump/save for now.
+Parameters for `DCT`: quality for each channel. For example: `DCT:50,50,50`. `DCT` only works for planar storage types like `IYUV`.
 
 Check console output for:
 - Original RGB size
 - Original RGB size without alpha channel
-- Sizes after manipulations.
+- Sizes after manipulations in bytes
+- Compression, decompression and converting time in ms
+
+TODOs:
+- Bug: broken colors for q > 75 in DCT (for some reason)
+- Dump/restore YUV

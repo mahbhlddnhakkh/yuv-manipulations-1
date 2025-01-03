@@ -29,6 +29,7 @@ public:
   MyYUV clone() const;
   int getWidth() const;
   int getHeight() const;
+  int getPitch() const;
 protected:
   int width = -1;
   int height = -1;

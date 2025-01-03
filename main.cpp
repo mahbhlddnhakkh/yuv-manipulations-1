@@ -37,7 +37,7 @@ extern void test_dct();
 static void pre_test() {
   int8_t tmp[64];
   for (int i = 0; i < 64; i++) {
-    tmp[i] = (63 - i) / 2;
+    tmp[i] = (64 - i);
   }
   for (int j = 0; j < 8; j++) {
     for (int i = 0; i < 8; i++) {
@@ -45,12 +45,20 @@ static void pre_test() {
     }
     std::cout << '\n';
   }
+  std::cout << '\n';
   Huffman<64> h = Huffman<64>::fromData(tmp);
   //h.printTree();
   uint8_t* data;
   uint8_t size;
   h.dump(data, size);
   h = Huffman<64>::fromDump(data, size);
+  int8_t* t =  h.getData();
+  for (int j = 0; j < 8; j++) {
+    for (int i = 0; i < 8; i++) {
+      std::cout << (int)t[i + j * 8] << '\t';
+    }
+    std::cout << '\n';
+  }
   std::cout << "\n\nTEST DCT\n";
   test_dct();
 }
@@ -92,7 +100,7 @@ int main(int argc, char* argv[]) {
   for (auto const& action : action_map) {
     std::cout << ' ' << action.first;
   }
-  std::cout << '\n';
+  std::cout << "\n\n";
   assert(argc > 2);
   MyYUV myyuv = MyYUV::from(argv[1], argv[2], argc > 3 ? argv[3] : "");
   int argi = std::string(argv[1]) == "YUV" ? 3 : 4;
@@ -102,7 +110,9 @@ int main(int argc, char* argv[]) {
     return 0;
   }
   argi++;
+  const int argi_start = argi;
   for (; argi < argc; argi++) {
+    std::cout << (argi - argi_start + 1) << ") " << argv[argi] << '\n';
     std::string action = argv[argi];
     std::vector<std::string> params;
     size_t pos;

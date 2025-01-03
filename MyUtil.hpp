@@ -9,15 +9,14 @@ T divide_roundnearest(T numer, T denom) {
   static_assert(std::numeric_limits<T>::is_integer, "Only integer types are allowed");
 
   T result = ((numer) < 0) != ((denom) < 0) ?
-      ((numer) - ((denom)/2)) / (denom) :
-      ((numer) + ((denom)/2)) / (denom);
+    ((numer) - ((denom)/2)) / (denom) :
+    ((numer) + ((denom)/2)) / (denom);
   return result;
 }
 
 // https://stackoverflow.com/a/36835959
-inline constexpr unsigned char operator "" _uchar( unsigned long long arg ) noexcept
-{
-    return static_cast< unsigned char >( arg );
+inline constexpr unsigned char operator "" _uchar( unsigned long long arg ) noexcept {
+  return static_cast< unsigned char >( arg );
 }
 
 template<int size>
@@ -26,7 +25,7 @@ static void squareMatrixMul(const float a[size * size], const float b[size * siz
   for (int i = 0; i < size; i++) {
     for (int k = 0; k < size; k++) {
       for (int j = 0; j < size; j++) {
-        c[i + j * size] += a[i + k * size] * b[k + j * size];
+        c[i * size + j] += a[k + i * size] * b[j + k * size];
       }
     }
   }
@@ -38,7 +37,7 @@ static void squareMatrixMulT(const float a[size * size], const float bT[size * s
   for (int i = 0; i < size; i++) {
     for (int k = 0; k < size; k++) {
       for (int j = 0; j < size; j++) {
-        c[i + j * size] += a[i + k * size] * bT[j + k * size];
+        c[i * size + j] += a[k + i * size] * bT[k + j * size];
       }
     }
   }
@@ -50,7 +49,7 @@ static void squareMatrixMulT2(const float aT[size * size], const float b[size * 
   for (int i = 0; i < size; i++) {
     for (int k = 0; k < size; k++) {
       for (int j = 0; j < size; j++) {
-        c[i + j * size] += aT[k + i * size] * b[k + j * size];
+        c[i * size + j] += aT[i + k * size] * b[j + k * size];
       }
     }
   }

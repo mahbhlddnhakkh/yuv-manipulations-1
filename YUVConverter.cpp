@@ -3,13 +3,21 @@
 #include <functional>
 #include <stdexcept>
 #include <iostream>
+#include <omp.h>
+#include <chrono>
 #include "MyYUV.hpp"
 #include "MyUtil.hpp"
 
 MyYUV YUVConverter::convertFromAYUV(const std::string& type, const uint8_t* ayuv, const int& width, const int& height) {
   auto search = yuv_types_map.find(type);
   if (search != yuv_types_map.end()) {
-    return search->second(ayuv, width, height);
+    auto start = std::chrono::high_resolution_clock::now();
+    MyYUV res = search->second(ayuv, width, height);
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = end - start;
+    std::cout << "YUV 4:4:4 to " << type << " converting time " << std::chrono::duration_cast<std::chrono::milliseconds>(duration).count() << " ms\n";
+    std::cout << "YUV " << type << " size " << res.size << " bytes\n";
+    return res;
   } else {
     throw std::runtime_error(type + " not found");
   }
@@ -51,7 +59,7 @@ const std::map<std::string, std::function<MyYUV(const uint8_t* ayuv, const int& 
     uint8_t* pixels = new uint8_t[new_size];
     uint8_t* u = &(pixels[width * height]);
     uint8_t* v = &(pixels[width * height * 5 / 4]);
-    int k = 0;
+    #pragma omp parallel for collapse(2)
     for (int j = 0; j < height; j+=2) {
       for (int i = 0; i < width; i+=2) {
         const int loc = i + j * width;
@@ -67,9 +75,9 @@ const std::map<std::string, std::function<MyYUV(const uint8_t* ayuv, const int& 
         pixels[loc + 1] = ayuv[loc_ayuv + 4];
         pixels[loc_down] = ayuv[loc_down_ayuv];
         pixels[loc_down + 1] = ayuv[loc_down_ayuv + 4];
+        const int k = (i + j * width / 2) / 2;
         u[k] = Cb;
         v[k] = Cr;
-        k++;
       }
     }
     MyYUV res = MyYUV(width, height, width, new_size, SDL_PIXELFORMAT_IYUV, pixels);

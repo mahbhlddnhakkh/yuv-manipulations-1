@@ -23,8 +23,8 @@ MyYUV MyYUV::fromBMP(const std::string& filename, const std::string& to_type) {
     //tmp = (uint8_t*)surf->pixels;
     int size = surf->h * surf->pitch;
     //std::cout << (Uint32)tmp[0] << ' ' << (Uint32)tmp[1] << ' ' << (Uint32)tmp[2] << ' ' << (Uint32)tmp[3] << '\n';
-    std::cout << "RGB size " << size << '\n';
-    std::cout << "RGB size without alpha " << size - surf->w * surf->h << '\n';
+    std::cout << "RGB size " << size << " bytes\n";
+    std::cout << "RGB size without alpha " << size - surf->w * surf->h << " bytes\n";
     if (to_type == "RGB") {
       uint8_t* data = new uint8_t[size];
       uint8_t* surf_pixels = static_cast<uint8_t*>(surf->pixels);
@@ -42,7 +42,6 @@ MyYUV MyYUV::fromBMP(const std::string& filename, const std::string& to_type) {
     //  std::cout << i << ' ' << (Uint32)tmp[i] << '\n';
     //}
     cleanup();
-    std::cout << "YUV size " << res.size << '\n';
     return res;
   } catch(...) {
     cleanup();
@@ -163,6 +162,11 @@ int MyYUV::getWidth() const {
 int MyYUV::getHeight() const {
   assert(isGood());
   return height;
+}
+
+int MyYUV::getPitch() const {
+  assert(isGood());
+  return pitch;
 }
 
 uint8_t* MyYUV::getAYUVFromXRGB(const uint8_t* rgbx, const int& size) {

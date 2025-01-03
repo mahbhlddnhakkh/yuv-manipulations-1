@@ -1,8 +1,8 @@
 CXX = g++
 
-CXXFLAGS = -Wall -g -O3 -std=c++17
+CXXFLAGS = -Wall -g -O3 -std=c++17 -fopenmp
 
-LDFLAGS = -lSDL3
+LDFLAGS = -lSDL3 -lpthread
 
 TARGET = YUVExp
 

@@ -6,7 +6,7 @@ LDFLAGS = -lSDL3 -lpthread
 
 TARGET = YUVExp
 
-SRCS = main.cpp MyYUV.cpp YUVCompressor.cpp YUVConverter.cpp
+SRCS = main.cpp MyYUV.cpp YUVCompressor.cpp YUVConverter.cpp MyUtil.cpp
 
 OBJS = $(SRCS:.cpp=.o)
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include "MyUtil.hpp"
 #include <bitset>
 #include <cassert>
 #include <cstddef>
@@ -13,11 +14,11 @@
 #include <algorithm>
 
 struct HFMNode {
-  int8_t ch;
+  int16_t ch;
   uint8_t freq;
   HFMNode* left;
   HFMNode* right;
-  HFMNode(int8_t ch = 0, uint8_t freq = 0, HFMNode* left = nullptr, HFMNode* right = nullptr) : ch(ch), freq(freq), left(left), right(right) {}
+  HFMNode(int16_t ch = 0, uint8_t freq = 0, HFMNode* left = nullptr, HFMNode* right = nullptr) : ch(ch), freq(freq), left(left), right(right) {}
   ~HFMNode() {
     deleteNodes();
   }
@@ -46,17 +47,17 @@ struct HFMNode {
 template<size_t msg_size>
 class Huffman {
 public:
-  static Huffman<msg_size> fromData(const int8_t data[msg_size]) {
+  static Huffman<msg_size> fromData(const int16_t data[msg_size]) {
     // create huffman tree
-    std::unordered_map<int8_t, uint8_t> freq;
+    std::unordered_map<int16_t, uint8_t> freq;
     size_t last_seen_zero = 0;
     const std::vector<size_t>& zigzag = Huffman<msg_size>::zigzagIndexes[msg_size];
-    int8_t _data[msg_size];
+    int16_t _data[msg_size];
     for (size_t i = 0; i < msg_size; i++) {
       _data[i] = data[zigzag[i]];
     }
     for (size_t i = 0; i < msg_size; i++) {
-      int8_t d = _data[i];
+      int16_t d = _data[i];
       if (d == 0) {
         last_seen_zero++;
       } else {
@@ -113,7 +114,7 @@ public:
     gen_code(root, 0);
     delete root;
     // create canonical tree
-    std::map<int8_t, std::string> codes = huffman.generateCanonicalTreeFromData();
+    std::map<int16_t, std::string> codes = huffman.generateCanonicalTreeFromData();
     // encode
     size_t encoded_data_size_bits = 0;
     for (size_t i = 0; i < actual_msg_size; i++) {
@@ -138,13 +139,12 @@ public:
     uint8_t i = 0;
     uint8_t tree_data_size = data[i++];
     assert(tree_data_size <= size);
-    while (i - 1 < tree_data_size) {
+    while (i < tree_data_size) {
       uint8_t ch_info = data[i++];
       uint8_t code_count = ch_info >> 5;
       uint8_t chs_count = (ch_info & 31) + 1;
-      for (uint8_t j = 0; j < chs_count; j++) {
-        huffman.tree_data[code_count].insert(data[i++]);
-      }
+      unpack11bit(&data[i], huffman.tree_data[code_count], chs_count);
+      i += (static_cast<int>(chs_count) * 11 + 7) / 8;
     }
     huffman.generateCanonicalTreeFromData();
     huffman.encoded_data_size = data[i++];
@@ -185,7 +185,7 @@ public:
     return huffman;
   }
 
-  int8_t* getData() {
+  int16_t* getData() {
     return data;
   }
 
@@ -206,24 +206,28 @@ public:
 
   void dump(uint8_t*& dat, uint8_t& size) {
     // 1 byte for tree code size chunk
-    // each tree code: 1 byte for code length (1..9) and ch count (1..32) + ch count bytes
+    // each tree code: 1 byte for code length (1..9) and ch count (1..32) + (ch_count * 11 + 7) / 8 bytes (11 bits per ch_count and padding)
     // 2 bytes for message size (1 byte for message size in bytes round down + 1 byte for extra bits)
     // message size bytes for message
-    // TODO: ch is 11 bits instead of 1 byte (8 bits)
     assert(msg_size <= 64 && "Not implemented for msg_size more than 64"); // effective for 64
     size = 3 + encoded_data_size + static_cast<uint8_t>(encoded_data_size_extra_bits > 0); // tree code size chunk + message size chunk + message
     for (auto it = tree_data.begin(); it != tree_data.end(); it++) {
-      int tmp = it->second.size();
-      if (tmp <= 32) {
-        tmp += 1;
+      uint8_t ch_count = it->second.size();
+      if (ch_count <= 32) {
+        size += 1;
+        int tmp = static_cast<int>(ch_count) * 11;
+        size += (tmp + 7) / 8;
       } else {
-        tmp += 2;
+        size += 2;
+        //int tmp = 352; // 32 * 11
+        size += 44; // (352 + 7) / 8
+        int tmp = static_cast<int>(ch_count - 32) * 11;
+        size += (tmp + 7) / 8;
       }
-      size += tmp;
     }
     //std::cout << "Chunk size " << size << '\n';
     dat = new uint8_t[size];
-    assert(size - 3 - encoded_data_size - static_cast<uint8_t>(encoded_data_size_extra_bits > 0) <= 255);
+    assert(static_cast<int>(size) - 3 - static_cast<int>(encoded_data_size) - static_cast<int>(encoded_data_size_extra_bits > 0) <= 255);
     uint8_t i = 0;
     dat[i++] = size - 3 - encoded_data_size - static_cast<uint8_t>(encoded_data_size_extra_bits > 0);
     for (auto it = tree_data.begin(); it != tree_data.end(); it++) {
@@ -236,10 +240,8 @@ public:
 temp_label:
       uint8_t _chs_count = std::min<uint8_t>(chs_count, 32);
       dat[i++] = (code_count << 5) | (_chs_count - 1);
-      for (uint8_t j = 0; j < _chs_count; j++) {
-        dat[i++] = *chs_iter;
-        chs_iter = std::next(chs_iter);
-      }
+      pack11bit(&dat[i], chs_iter, _chs_count);
+      i += (static_cast<int>(_chs_count) * 11 + 7) / 8;
       if (chs_count > 32) {
         chs_count -= 32;
         goto temp_label;
@@ -267,21 +269,21 @@ temp_label:
     return static_cast<size_t>(encoded_data_size) * 8 + encoded_data_size_extra_bits;
   }
 protected:
-  std::map<uint8_t, std::set<int8_t>> tree_data;
+  std::map<uint8_t, std::set<int16_t>> tree_data;
   HFMNode* root;
-  int8_t data[msg_size];
+  int16_t data[msg_size];
   std::bitset<msg_size * 8> encoded_data;
   uint8_t encoded_data_size; // in bytes
   uint8_t encoded_data_size_extra_bits;
 protected:
   Huffman() : data{0} {}
-  std::map<int8_t, std::string> generateCanonicalTreeFromData() {
+  std::map<int16_t, std::string> generateCanonicalTreeFromData() {
     root = new HFMNode();
-    std::map<int8_t, std::string> codes;
+    std::map<int16_t, std::string> codes;
     uint8_t curr_len = 0, next_len = 0;
     uint64_t c_code = 0;
     for (auto it = tree_data.begin(); it != tree_data.end(); it++) {
-      std::set<int8_t> s = it->second;
+      std::set<int16_t> s = it->second;
       curr_len = it->first;
       for (auto i = s.begin(); i != s.end(); i++) {
         std::string d = std::bitset<sizeof(c_code)*8>(c_code).to_string().substr(sizeof(c_code)*8 - curr_len, sizeof(c_code)*8);

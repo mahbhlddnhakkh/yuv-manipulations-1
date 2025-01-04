@@ -19,6 +19,6 @@ make clean
 make
 ./YUVExp BMP "chef-with-trumpet.bmp" RGB test-chef-with-trumpet-rgb show > /dev/null &
 RGB_PID=$!
-./YUVExp BMP "chef-with-trumpet.bmp" IYUV test-chef-with-trumpet show DCT:50,50,50 show reset DCT:70,70,70 show
+./YUVExp BMP "chef-with-trumpet.bmp" IYUV test-chef-with-trumpet show DCT:50,50,50 show reset DCT:90,90,90 show
 wait $RGB_PID
 make clean

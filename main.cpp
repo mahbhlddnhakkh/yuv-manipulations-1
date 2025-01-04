@@ -42,7 +42,7 @@ static void addCompressionToActionMap() {
 extern void test_dct();
 
 static void pre_test() {
-  int8_t tmp[64];
+  int16_t tmp[64];
   for (int i = 0; i < 64; i++) {
     tmp[i] = (64 - i);
   }
@@ -59,7 +59,7 @@ static void pre_test() {
   uint8_t size;
   h.dump(data, size);
   h = Huffman<64>::fromDump(data, size);
-  int8_t* t =  h.getData();
+  int16_t* t =  h.getData();
   for (int j = 0; j < 8; j++) {
     for (int i = 0; i < 8; i++) {
       std::cout << (int)t[i + j * 8] << '\t';

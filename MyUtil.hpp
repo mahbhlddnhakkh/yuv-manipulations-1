@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cstdint>
+#include <set>
 #include <limits>
 #include <algorithm>
 
@@ -20,7 +22,7 @@ inline constexpr unsigned char operator "" _uchar( unsigned long long arg ) noex
 }
 
 template<int size>
-static void squareMatrixMul(const float a[size * size], const float b[size * size], float c[size * size]) {
+void squareMatrixMul(const float a[size * size], const float b[size * size], float c[size * size]) {
   std::fill_n(c, size * size, 0.0f);
   for (int i = 0; i < size; i++) {
     for (int k = 0; k < size; k++) {
@@ -32,7 +34,7 @@ static void squareMatrixMul(const float a[size * size], const float b[size * siz
 }
 
 template<int size>
-static void squareMatrixMulT(const float a[size * size], const float bT[size * size], float c[size * size]) {
+void squareMatrixMulT(const float a[size * size], const float bT[size * size], float c[size * size]) {
   std::fill_n(c, size * size, 0.0f);
   for (int i = 0; i < size; i++) {
     for (int k = 0; k < size; k++) {
@@ -44,7 +46,7 @@ static void squareMatrixMulT(const float a[size * size], const float bT[size * s
 }
 
 template<int size>
-static void squareMatrixMulT2(const float aT[size * size], const float b[size * size], float c[size * size]) {
+void squareMatrixMulT2(const float aT[size * size], const float b[size * size], float c[size * size]) {
   std::fill_n(c, size * size, 0.0f);
   for (int i = 0; i < size; i++) {
     for (int k = 0; k < size; k++) {
@@ -54,3 +56,12 @@ static void squareMatrixMulT2(const float aT[size * size], const float b[size * 
     }
   }
 }
+
+template<typename T>
+bool checkOverflowAdd(const T& a, const T& b) {
+  return !(b > std::numeric_limits<T>::max() - a);
+}
+
+void pack11bit(uint8_t* packed_res, std::set<int16_t>::iterator& it, uint8_t count);
+
+void unpack11bit(const uint8_t* packed_arr, std::set<int16_t>& res, uint8_t count);

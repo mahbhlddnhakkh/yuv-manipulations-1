@@ -89,17 +89,17 @@ static void precomputeDCT() {
 
 #ifdef USE_DCT_MATRIX_IMPLEMENTATION
 template<int DCT_matrix_size>
-static void applyDCTtoBlock(float data_block[DCT_matrix_size * DCT_matrix_size], int8_t res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size], const float DCT_matrix[DCT_matrix_size * DCT_matrix_size]) {
+static void applyDCTtoBlock(float data_block[DCT_matrix_size * DCT_matrix_size], int16_t res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size], const float DCT_matrix[DCT_matrix_size * DCT_matrix_size]) {
   float data_block_2[DCT_matrix_size * DCT_matrix_size];
   squareMatrixMul<DCT_matrix_size>(DCT_matrix, data_block, data_block_2);
   squareMatrixMulT<DCT_matrix_size>(data_block_2, DCT_matrix, data_block);
   for (int i = 0; i < DCT_matrix_size * DCT_matrix_size; i++) {
-    res[i] = std::clamp(static_cast<int>(std::round(data_block[i] / q_table[i])), INT8_MIN, INT8_MAX);
+    res[i] = static_cast<int16_t>(std::round(data_block[i] / q_table[i]));
   }
 }
 #else
 template<int DCT_matrix_size>
-static void applyDCTtoBlock(float data_block[DCT_matrix_size * DCT_matrix_size], int8_t res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size], const float C[DCT_matrix_size], const float cos_table[DCT_matrix_size][DCT_matrix_size]) {
+static void applyDCTtoBlock(float data_block[DCT_matrix_size * DCT_matrix_size], int16_t res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size], const float C[DCT_matrix_size], const float cos_table[DCT_matrix_size][DCT_matrix_size]) {
   static const float inv_2_size_sqrt = 1.0f / std::sqrt(static_cast<float>(DCT_matrix_size * 2));
   int val_max = INT32_MIN;
   int val_min = INT32_MAX;
@@ -114,7 +114,7 @@ static void applyDCTtoBlock(float data_block[DCT_matrix_size * DCT_matrix_size],
       const float D_ij = inv_2_size_sqrt * C[i] * C[j] * sum;
       val_max = std::max<int>(val_max, std::round(D_ij));
       val_min = std::min<int>(val_min, std::round(D_ij));
-      res[i + j * DCT_matrix_size] = std::clamp(static_cast<int>(std::round(D_ij / q_table[i + j * DCT_matrix_size])), INT8_MIN, INT8_MAX);
+      res[i + j * DCT_matrix_size] = static_cast<int16_t>(std::round(D_ij / q_table[i + j * DCT_matrix_size]));
     }
   }
   std::cout << val_max << ' ' << val_min << '\n';
@@ -141,7 +141,7 @@ static void applyDCTtoPane(uint8_t** res, uint8_t* res_size, const uint8_t* data
   #pragma omp parallel for collapse(2)
   for (int j = 0; j < height; j += DCT_matrix_size) {
     for (int i = 0; i < width; i += DCT_matrix_size) {
-      int8_t block_res[DCT_matrix_size * DCT_matrix_size];
+      int16_t block_res[DCT_matrix_size * DCT_matrix_size];
       float data_block[DCT_matrix_size * DCT_matrix_size];
       for (int jj = 0; jj < DCT_matrix_size; jj++) {
         for (int ii = 0; ii < DCT_matrix_size; ii++) {
@@ -166,7 +166,7 @@ static void applyDCTtoPane(uint8_t** res, uint8_t* res_size, const uint8_t* data
 template<int DCT_matrix_size>
 static void restoreDCTBlock(const uint8_t* huffman, const uint8_t& huffman_size, float res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size], const float DCT_matrix[DCT_matrix_size * DCT_matrix_size]) {
   Huffman<DCT_matrix_size * DCT_matrix_size> _huffman = Huffman<DCT_matrix_size * DCT_matrix_size>::fromDump(huffman, huffman_size);
-  int8_t* data = _huffman.getData();
+  int16_t* data = _huffman.getData();
   float data_block[64];
   for (int i = 0; i < DCT_matrix_size * DCT_matrix_size; i++) {
     res[i] = static_cast<float>(data[i]) * q_table[i];
@@ -179,7 +179,7 @@ template<int DCT_matrix_size>
 static void restoreDCTBlock(const uint8_t* huffman, const uint8_t& huffman_size, float res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size], const float C[DCT_matrix_size], const float cos_table[DCT_matrix_size][DCT_matrix_size]) {
   static const float inv_2_size_sqrt = 1.0f / std::sqrt(static_cast<float>(DCT_matrix_size * 2));
   Huffman<DCT_matrix_size * DCT_matrix_size> _huffman = Huffman<DCT_matrix_size * DCT_matrix_size>::fromDump(huffman, huffman_size);
-  int8_t* data = _huffman.getData();
+  int16_t* data = _huffman.getData();
   float data_block[64];
   for (int i = 0; i < DCT_matrix_size * DCT_matrix_size; i++) {
     data_block[i] = static_cast<float>(data[i]) * q_table[i];
@@ -261,7 +261,7 @@ extern void test_dct() {
     -5, -23, -18, 21, 8, 8, 52, 38,
     -18, 8, -5, -5, -5, 8, 26, 8,
   };
-  int8_t block_res[64];
+  int16_t block_res[64];
   applyDCTtoBlock<8>(data_block, block_res, q_table,
 #ifdef USE_DCT_MATRIX_IMPLEMENTATION
   DCT_matrix_8
@@ -277,7 +277,7 @@ extern void test_dct() {
   }
   std::cout << '\n';
   float block_res2[64];
-  uint8_t res[64];
+  uint16_t res[64];
   Huffman<64> huffman = Huffman<64>::fromData(block_res);
   uint8_t* huffman_dump;
   uint8_t huffman_size;

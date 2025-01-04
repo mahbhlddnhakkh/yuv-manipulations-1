@@ -209,7 +209,7 @@ public:
     // each tree code: 1 byte for code length (1..9) and ch count (1..32) + ch count bytes
     // 2 bytes for message size (1 byte for message size in bytes round down + 1 byte for extra bits)
     // message size bytes for message
-    // TODO: ch is 10 bits instead of 1 byte (8 bits)
+    // TODO: ch is 11 bits instead of 1 byte (8 bits)
     assert(msg_size <= 64 && "Not implemented for msg_size more than 64"); // effective for 64
     size = 3 + encoded_data_size + static_cast<uint8_t>(encoded_data_size_extra_bits > 0); // tree code size chunk + message size chunk + message
     for (auto it = tree_data.begin(); it != tree_data.end(); it++) {

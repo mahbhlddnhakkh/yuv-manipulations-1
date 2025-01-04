@@ -53,7 +53,7 @@ You can select implementations for compression in `YUVCompressorFeatures.hpp`.
 - Compression, decompression and converting time in ms
 
 ### TODOs:
-- Bug: broken colors for q > 75 in DCT and DCTChroma. I think I've found the cause: integer overflow when saving matrix after DCT transformation: attempt to put 10 bit number into 8 bit number. I'll try to fix this later.
+- Bug: broken colors for q > 75 in DCT and DCTChroma. I think I've found the cause: integer overflow when saving matrix after DCT transformation: attempt to put 11 bit signed number into 8 bit signed number. I'll try to fix this later.
 - Dump/restore YUV
 - Change (most) asserts to C++ exceptions
 - Generate compression algorithms and YUV formats with macros

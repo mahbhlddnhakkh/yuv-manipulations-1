@@ -304,8 +304,8 @@ extern void test_dct() {
 
 #ifdef USE_DCT_IYUV
 void YUVCompressor::DST_IYUV_compress(MyYUV& myyuv, const uint8_t q[3]) {
-  assert(myyuv.width % 32 == 0);
-  assert(myyuv.height % 32 == 0);
+  assert(myyuv.width % 16 == 0);
+  assert(myyuv.height % 16 == 0);
   assert(myyuv.format == SDL_PIXELFORMAT_IYUV);
   assert(!myyuv.isCompressed());
   for (int i = 0; i < 3; i++) {
@@ -396,8 +396,8 @@ void YUVCompressor::DST_IYUV_compress(MyYUV& myyuv, const uint8_t q[3]) {
 }
 
 void YUVCompressor::DST_IYUV_decompress(MyYUV& myyuv) {
-  assert(myyuv.width % 32 == 0);
-  assert(myyuv.height % 32 == 0);
+  assert(myyuv.width % 16 == 0);
+  assert(myyuv.height % 16 == 0);
   assert(myyuv.format == SDL_PIXELFORMAT_IYUV);
   assert(myyuv.isCompressed());
   assert(myyuv.compressor.data_for_decompress_size == 3);

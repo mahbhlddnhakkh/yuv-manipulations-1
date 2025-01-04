@@ -22,6 +22,7 @@ static float lum_q_table[64] = {
   49, 64, 78, 87, 103, 121, 120, 101,
   72, 92, 95, 98, 112, 100, 103, 99,
 };
+
 static float chroma_q_table[64] = {
   17, 18, 24, 47, 99, 99, 99, 99,
   18, 21, 26, 66, 99, 99, 99, 99,
@@ -32,8 +33,11 @@ static float chroma_q_table[64] = {
   99, 99, 99, 99, 99, 99, 99, 99,
   99, 99, 99, 99, 99, 99, 99, 99,
 };
+
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
 static float DCT_matrix_8[64];
 //static float DCT_matrix_4[16];
+
 template<size_t size>
 static void calculateDCTMatrix(float DCT_matrix[size * size]) {
   const float inv_size_sqrt = 1.0f / std::sqrt(static_cast<float>(size));
@@ -49,9 +53,43 @@ static void calculateDCTMatrix(float DCT_matrix[size * size]) {
     }
   }
 }
+#else
+static float C_8[8];
+static float cos_table_8[8][8];
 
+template<size_t size>
+static void calculateCForDCT(float C[size]) {
+  C[0] = 1.0f / std::sqrt(2.0f);
+  for (size_t i = 1u; i < size; i++) {
+    C[i] = 1.0f;
+  }
+}
+
+template<size_t size>
+static void calculateCosTableForDCT(float cos_table[size][size]) {
+  const float inv_2_size_float = 1.0f / static_cast<float>(size + size);
+  for (size_t x = 0u; x < size; x++) {
+    for (size_t i = 0u; i < size; i++) {
+      const float _x = static_cast<float>(x);
+      const float _i = static_cast<float>(i);
+      cos_table[x][i] = std::cos((2.0f * _x + 1.0f) * _i * M_PIf32 * inv_2_size_float);
+    }
+  }
+}
+#endif
+static void precomputeDCT() {
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+  //calculateDCTMatrix<4>(DCT_matrix_4);
+  calculateDCTMatrix<8>(DCT_matrix_8);
+#else
+  calculateCForDCT<8>(C_8);
+  calculateCosTableForDCT<8>(cos_table_8);
+#endif
+}
+
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
 template<int DCT_matrix_size>
-static void applyDCTtoBlock(float data_block[DCT_matrix_size * DCT_matrix_size], const float DCT_matrix[DCT_matrix_size * DCT_matrix_size], int8_t res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size]) {
+static void applyDCTtoBlock(float data_block[DCT_matrix_size * DCT_matrix_size], int8_t res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size], const float DCT_matrix[DCT_matrix_size * DCT_matrix_size]) {
   float data_block_2[DCT_matrix_size * DCT_matrix_size];
   squareMatrixMul<DCT_matrix_size>(DCT_matrix, data_block, data_block_2);
   squareMatrixMulT<DCT_matrix_size>(data_block_2, DCT_matrix, data_block);
@@ -59,9 +97,37 @@ static void applyDCTtoBlock(float data_block[DCT_matrix_size * DCT_matrix_size],
     res[i] = std::clamp(static_cast<int>(std::round(data_block[i] / q_table[i])), INT8_MIN, INT8_MAX);
   }
 }
-
+#else
 template<int DCT_matrix_size>
-static void applyDCTtoPane(uint8_t** res, uint8_t* res_size, const uint8_t* data, const int& width, const int& height, const float DCT_matrix[DCT_matrix_size * DCT_matrix_size], const float q, const float q_50_table[DCT_matrix_size * DCT_matrix_size]) {
+static void applyDCTtoBlock(float data_block[DCT_matrix_size * DCT_matrix_size], int8_t res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size], const float C[DCT_matrix_size], const float cos_table[DCT_matrix_size][DCT_matrix_size]) {
+  static const float inv_2_size_sqrt = 1.0f / std::sqrt(static_cast<float>(DCT_matrix_size * 2));
+  int val_max = INT32_MIN;
+  int val_min = INT32_MAX;
+  for (int j = 0; j < DCT_matrix_size; j++) {
+    for (int i = 0; i < DCT_matrix_size; i++) {
+      float sum = 0.0f;
+      for (int y = 0; y < DCT_matrix_size; y++) {
+        for (int x = 0; x < DCT_matrix_size; x++) {
+          sum += data_block[x + y * DCT_matrix_size] * cos_table[x][i] * cos_table[y][j];
+        }
+      }
+      const float D_ij = inv_2_size_sqrt * C[i] * C[j] * sum;
+      val_max = std::max<int>(val_max, std::round(D_ij));
+      val_min = std::min<int>(val_min, std::round(D_ij));
+      res[i + j * DCT_matrix_size] = std::clamp(static_cast<int>(std::round(D_ij / q_table[i + j * DCT_matrix_size])), INT8_MIN, INT8_MAX);
+    }
+  }
+  std::cout << val_max << ' ' << val_min << '\n';
+}
+#endif
+
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+template<int DCT_matrix_size>
+static void applyDCTtoPane(uint8_t** res, uint8_t* res_size, const uint8_t* data, const int& width, const int& height, const float q, const float q_50_table[DCT_matrix_size * DCT_matrix_size], const float DCT_matrix[DCT_matrix_size * DCT_matrix_size]) {
+#else
+template<int DCT_matrix_size>
+static void applyDCTtoPane(uint8_t** res, uint8_t* res_size, const uint8_t* data, const int& width, const int& height, const float q, const float q_50_table[DCT_matrix_size * DCT_matrix_size], const float C[DCT_matrix_size], const float cos_table[DCT_matrix_size][DCT_matrix_size]) {
+#endif
   assert(DCT_matrix_size > 0);
   assert(width % DCT_matrix_size == 0);
   assert(height % DCT_matrix_size == 0);
@@ -82,7 +148,13 @@ static void applyDCTtoPane(uint8_t** res, uint8_t* res_size, const uint8_t* data
           data_block[ii + jj * DCT_matrix_size] = static_cast<float>(data[(i + ii) + (j + jj) * width]) - 128.0f;
         }
       }
-      applyDCTtoBlock<DCT_matrix_size>(data_block, DCT_matrix, block_res, q_table);
+      applyDCTtoBlock<DCT_matrix_size>(data_block, block_res, q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix
+#else
+        C, cos_table
+#endif
+      );
       Huffman<DCT_matrix_size * DCT_matrix_size> huffman = Huffman<DCT_matrix_size * DCT_matrix_size>::fromData(block_res);
       const int k = (i + j * width / DCT_matrix_size) / DCT_matrix_size;
       huffman.dump(res[k], res_size[k]);
@@ -90,8 +162,9 @@ static void applyDCTtoPane(uint8_t** res, uint8_t* res_size, const uint8_t* data
   }
 }
 
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
 template<int DCT_matrix_size>
-static void restoreDCTBlock(const uint8_t* huffman, const uint8_t& huffman_size, const float DCT_matrix[DCT_matrix_size * DCT_matrix_size], float res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size]) {
+static void restoreDCTBlock(const uint8_t* huffman, const uint8_t& huffman_size, float res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size], const float DCT_matrix[DCT_matrix_size * DCT_matrix_size]) {
   Huffman<DCT_matrix_size * DCT_matrix_size> _huffman = Huffman<DCT_matrix_size * DCT_matrix_size>::fromDump(huffman, huffman_size);
   int8_t* data = _huffman.getData();
   float data_block[64];
@@ -101,9 +174,37 @@ static void restoreDCTBlock(const uint8_t* huffman, const uint8_t& huffman_size,
   squareMatrixMulT2<DCT_matrix_size>(DCT_matrix, res, data_block);
   squareMatrixMul<DCT_matrix_size>(data_block, DCT_matrix, res);
 }
-
+#else
 template<int DCT_matrix_size>
-static void restoreDCTPane(uint8_t* data, const uint8_t* huffman_data, const int& huffman_data_size, const int* huffman_indexes, const int& width, const int& height, const float DCT_matrix[DCT_matrix_size * DCT_matrix_size], const float q, const float q_50_table[DCT_matrix_size * DCT_matrix_size]) {
+static void restoreDCTBlock(const uint8_t* huffman, const uint8_t& huffman_size, float res[DCT_matrix_size * DCT_matrix_size], const float q_table[DCT_matrix_size * DCT_matrix_size], const float C[DCT_matrix_size], const float cos_table[DCT_matrix_size][DCT_matrix_size]) {
+  static const float inv_2_size_sqrt = 1.0f / std::sqrt(static_cast<float>(DCT_matrix_size * 2));
+  Huffman<DCT_matrix_size * DCT_matrix_size> _huffman = Huffman<DCT_matrix_size * DCT_matrix_size>::fromDump(huffman, huffman_size);
+  int8_t* data = _huffman.getData();
+  float data_block[64];
+  for (int i = 0; i < DCT_matrix_size * DCT_matrix_size; i++) {
+    data_block[i] = static_cast<float>(data[i]) * q_table[i];
+  }
+  for (int y = 0; y < DCT_matrix_size; y++) {
+    for (int x = 0; x < DCT_matrix_size; x++) {
+      float sum = 0.0f;
+      for (int j = 0; j < DCT_matrix_size; j++) {
+        for (int i = 0; i < DCT_matrix_size; i++) {
+          sum += C[i] * C[j] * data_block[i + j * DCT_matrix_size] * cos_table[x][i] * cos_table[y][j];
+        }
+      }
+      res[x + y * DCT_matrix_size] = inv_2_size_sqrt * sum;
+    }
+  }
+}
+#endif
+
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+template<int DCT_matrix_size>
+static void restoreDCTPane(uint8_t* data, const uint8_t* huffman_data, const int& huffman_data_size, const int* huffman_indexes, const int& width, const int& height, const float q, const float q_50_table[DCT_matrix_size * DCT_matrix_size], const float DCT_matrix[DCT_matrix_size * DCT_matrix_size]) {
+#else
+template<int DCT_matrix_size>
+static void restoreDCTPane(uint8_t* data, const uint8_t* huffman_data, const int& huffman_data_size, const int* huffman_indexes, const int& width, const int& height, const float q, const float q_50_table[DCT_matrix_size * DCT_matrix_size], const float C[DCT_matrix_size], const float cos_table[DCT_matrix_size][DCT_matrix_size]) {
+#endif
   assert(DCT_matrix_size > 0);
   assert(width % DCT_matrix_size == 0);
   assert(height % DCT_matrix_size == 0);
@@ -119,7 +220,13 @@ static void restoreDCTPane(uint8_t* data, const uint8_t* huffman_data, const int
     for (int i = 0; i < width; i += DCT_matrix_size) {
       const int huffman_index = huffman_indexes[(i + j * width / DCT_matrix_size) / DCT_matrix_size];
       float block_res[DCT_matrix_size * DCT_matrix_size];
-      restoreDCTBlock<DCT_matrix_size>(&huffman_data[huffman_index + 1], huffman_data[huffman_index], DCT_matrix, block_res, q_table);
+      restoreDCTBlock<DCT_matrix_size>(&huffman_data[huffman_index + 1], huffman_data[huffman_index], block_res, q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix
+#else
+        C, cos_table
+#endif
+      );
       assert(huffman_index <= huffman_data_size);
       for (int jj = 0; jj < DCT_matrix_size; jj++) {
         for (int ii = 0; ii < DCT_matrix_size; ii++) {
@@ -155,7 +262,13 @@ extern void test_dct() {
     -18, 8, -5, -5, -5, 8, 26, 8,
   };
   int8_t block_res[64];
-  applyDCTtoBlock<8>(data_block, DCT_matrix_8, block_res, q_table);
+  applyDCTtoBlock<8>(data_block, block_res, q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+  DCT_matrix_8
+#else
+  C_8, cos_table_8
+#endif
+  );
   for (int j = 0; j < 8; j++) {
     for (int i = 0; i < 8; i++) {
       std::cout << (int)block_res[i + j * 8] << '\t';
@@ -169,7 +282,13 @@ extern void test_dct() {
   uint8_t* huffman_dump;
   uint8_t huffman_size;
   huffman.dump(huffman_dump, huffman_size);
-  restoreDCTBlock<8>(huffman_dump, huffman_size, DCT_matrix_8, block_res2, q_table);
+  restoreDCTBlock<8>(huffman_dump, huffman_size, block_res2, q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+    DCT_matrix_8
+#else
+    C_8, cos_table_8
+#endif
+  );
   for (int i = 0; i < 64; i++) {
     res[i] = std::clamp(static_cast<int>(std::round(block_res2[i])) + 128, 0, UINT8_MAX);
   }
@@ -183,7 +302,7 @@ extern void test_dct() {
 }
 #endif
 
-#if defined (USE_DCT) && defined (USE_DCT_IYUV)
+#ifdef USE_DCT_IYUV
 void YUVCompressor::DST_IYUV_compress(MyYUV& myyuv, const uint8_t q[3]) {
   assert(myyuv.width % 32 == 0);
   assert(myyuv.height % 32 == 0);
@@ -210,37 +329,45 @@ void YUVCompressor::DST_IYUV_compress(MyYUV& myyuv, const uint8_t q[3]) {
   {
     #pragma omp section
     {
-      applyDCTtoPane<8>(Y, Y_size, myyuv.data, myyuv.width, myyuv.height, DCT_matrix_8, q[0], lum_q_table);
+      applyDCTtoPane<8>(Y, Y_size, myyuv.data, myyuv.width, myyuv.height, q[0], lum_q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix_8
+#else
+        C_8, cos_table_8
+#endif
+      );
     }
     #pragma omp section
     {
-      applyDCTtoPane<8>(U, U_size, myyuv.data + myyuv.width * myyuv.height, myyuv.width / 2, myyuv.height / 2, DCT_matrix_8, q[1], chroma_q_table);
+      applyDCTtoPane<8>(U, U_size, myyuv.data + myyuv.width * myyuv.height, myyuv.width / 2, myyuv.height / 2, q[1], chroma_q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix_8
+#else
+        C_8, cos_table_8
+#endif
+      );
     }
     #pragma omp section
     {
-      applyDCTtoPane<8>(V, V_size, myyuv.data + myyuv.width * myyuv.height * 5 / 4, myyuv.width / 2, myyuv.height / 2, DCT_matrix_8, q[2], chroma_q_table);
+      applyDCTtoPane<8>(V, V_size, myyuv.data + myyuv.width * myyuv.height * 5 / 4, myyuv.width / 2, myyuv.height / 2, q[2], chroma_q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix_8
+#else
+        C_8, cos_table_8
+#endif
+      );
     }
   }
   int total_size = myyuv.width * myyuv.height * 6 / 256;
-  int tmp_count = myyuv.width * myyuv.height / 64; // TODO: delete
-  //std::cout << total_size << '\n';
   for (int i = 0; i < myyuv.width * myyuv.height / 64; i++) {
     total_size += Y_size[i];
-    tmp_count += Y_size[i];
   }
-  //std::cout << tmp_count << '\n';
-  tmp_count = myyuv.width * myyuv.height / 256;
   for (int i = 0; i < myyuv.width * myyuv.height / 256; i++) {
     total_size += U_size[i];
-    tmp_count += U_size[i];
   }
-  //std::cout << tmp_count << '\n';
-  tmp_count = myyuv.width * myyuv.height / 256;
   for (int i = 0; i < myyuv.width * myyuv.height / 256; i++) {
     total_size += V_size[i];
-    tmp_count += V_size[i];
   }
-  //std::cout << tmp_count << '\n';
   //std::cout << "DCT IYUV compressed size " << total_size << '\n';
   delete[] myyuv.data;
   myyuv.data = new uint8_t[total_size];
@@ -290,7 +417,7 @@ void YUVCompressor::DST_IYUV_decompress(MyYUV& myyuv) {
   int k = 0;
   int k_arr[3];
   int saved_k_arr[3];
-  saved_k_arr[0] = 0;
+  saved_k_arr[0] = k;
   for (int i = 0; i < myyuv.width * myyuv.height / 64; i++) {
     Y_huffman_ind[i] = k - saved_k_arr[0];
     k += myyuv.data[k] + 1;
@@ -310,24 +437,188 @@ void YUVCompressor::DST_IYUV_decompress(MyYUV& myyuv) {
     k += myyuv.data[k] + 1;
   }
   //std::cout << k - saved_k_arr[2] << '\n';
-  assert(k == myyuv.compressor.size);
   k_arr[2] = k;
+  assert(k == myyuv.compressor.size);
   #pragma omp parallel sections
   {
     #pragma omp section
     {
-      restoreDCTPane<8>(Y, myyuv.data + saved_k_arr[0], k_arr[0] - saved_k_arr[0], Y_huffman_ind, myyuv.width, myyuv.height, DCT_matrix_8, q[0], lum_q_table);
+      restoreDCTPane<8>(Y, myyuv.data + saved_k_arr[0], k_arr[0] - saved_k_arr[0], Y_huffman_ind, myyuv.width, myyuv.height, q[0], lum_q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix_8
+#else
+        C_8, cos_table_8
+#endif
+      );
     }
     #pragma omp section
     {
-      restoreDCTPane<8>(U, myyuv.data + saved_k_arr[1], k_arr[1] - saved_k_arr[1], U_huffman_ind, myyuv.width / 2, myyuv.height / 2, DCT_matrix_8, q[1], chroma_q_table);
+      restoreDCTPane<8>(U, myyuv.data + saved_k_arr[1], k_arr[1] - saved_k_arr[1], U_huffman_ind, myyuv.width / 2, myyuv.height / 2, q[1], chroma_q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix_8
+#else
+        C_8, cos_table_8
+#endif
+      );
     }
     #pragma omp section
     {
-      restoreDCTPane<8>(V, myyuv.data + saved_k_arr[2], k_arr[2] - saved_k_arr[2], V_huffman_ind, myyuv.width / 2, myyuv.height / 2, DCT_matrix_8, q[2], chroma_q_table);
+      restoreDCTPane<8>(V, myyuv.data + saved_k_arr[2], k_arr[2] - saved_k_arr[2], V_huffman_ind, myyuv.width / 2, myyuv.height / 2, q[2], chroma_q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix_8
+#else
+        C_8, cos_table_8
+#endif
+      );
     }
   }
   delete[] Y_huffman_ind;
+  delete[] U_huffman_ind;
+  delete[] V_huffman_ind;
+  delete[] myyuv.data;
+  myyuv.data = data;
+  myyuv.compressor.removeDataForDecompress();
+  myyuv.compressor.type = "";
+}
+#endif
+
+#ifdef USE_DCT_CHROMA_IYUV
+void YUVCompressor::DST_CHROMA_IYUV_compress(MyYUV& myyuv, const uint8_t q[2]) {
+  assert(myyuv.width % 32 == 0);
+  assert(myyuv.height % 32 == 0);
+  assert(myyuv.format == SDL_PIXELFORMAT_IYUV);
+  assert(!myyuv.isCompressed());
+  for (int i = 0; i < 2; i++) {
+    if (q[i] < 1 || q[i] > 100) {
+      throw std::runtime_error("Level of quality must be between 1 and 100");
+    }
+  }
+  uint8_t* _q = new uint8_t[2];
+  for (int i = 0; i < 2; i++) {
+    _q[i] = q[i];
+  }
+  uint8_t** U = new uint8_t*[myyuv.width * myyuv.height / 256];
+  uint8_t* U_size = new uint8_t[myyuv.width * myyuv.height / 256];
+  uint8_t** V = new uint8_t*[myyuv.width * myyuv.height / 256];
+  uint8_t* V_size = new uint8_t[myyuv.width * myyuv.height / 256];
+  myyuv.compressor.data_for_decompress = _q;
+  myyuv.compressor.data_for_decompress_size = 2;
+  #pragma omp parallel sections
+  {
+    #pragma omp section
+    {
+      applyDCTtoPane<8>(U, U_size, myyuv.data + myyuv.width * myyuv.height, myyuv.width / 2, myyuv.height / 2, q[0], chroma_q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix_8
+#else
+        C_8, cos_table_8
+#endif
+      );
+    }
+    #pragma omp section
+    {
+      applyDCTtoPane<8>(V, V_size, myyuv.data + myyuv.width * myyuv.height * 5 / 4, myyuv.width / 2, myyuv.height / 2, q[1], chroma_q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix_8
+#else
+        C_8, cos_table_8
+#endif
+      );
+    }
+  }
+  int total_size = myyuv.width * myyuv.height * 258 / 256;
+  for (int i = 0; i < myyuv.width * myyuv.height / 256; i++) {
+    total_size += U_size[i];
+  }
+  for (int i = 0; i < myyuv.width * myyuv.height / 256; i++) {
+    total_size += V_size[i];
+  }
+  //std::cout << "DCTChroma IYUV compressed size " << total_size << '\n';
+  uint8_t* old_myyuv_data = myyuv.data;
+  myyuv.data = new uint8_t[total_size];
+  std::copy(old_myyuv_data, old_myyuv_data + myyuv.width * myyuv.height, myyuv.data);
+  delete[] old_myyuv_data;
+  myyuv.compressor.type = "DCTChroma";
+  myyuv.compressor.size = total_size;
+  int k = myyuv.width * myyuv.height;
+  for (int i = 0; i < myyuv.width * myyuv.height / 256; i++) {
+    myyuv.data[k++] = U_size[i];
+    for (uint8_t j = 0; j < U_size[i]; j++) {
+      myyuv.data[k++] = U[i][j];
+    }
+  }
+  for (int i = 0; i < myyuv.width * myyuv.height / 256; i++) {
+    myyuv.data[k++] = V_size[i];
+    for (uint8_t j = 0; j < V_size[i]; j++) {
+      myyuv.data[k++] = V[i][j];
+    }
+  }
+  assert(k == total_size);
+}
+
+void YUVCompressor::DST_CHROMA_IYUV_decompress(MyYUV& myyuv) {
+  assert(myyuv.width % 32 == 0);
+  assert(myyuv.height % 32 == 0);
+  assert(myyuv.format == SDL_PIXELFORMAT_IYUV);
+  assert(myyuv.isCompressed());
+  assert(myyuv.compressor.data_for_decompress_size == 2);
+  uint8_t* q = reinterpret_cast<uint8_t*>(myyuv.compressor.data_for_decompress);
+  for (int i = 0; i < 2; i++) {
+    if (q[i] < 1 || q[i] > 100) {
+      throw std::runtime_error("Level of quality must be between 1 and 100");
+    }
+  }
+  uint8_t* data = new uint8_t[myyuv.size];
+  uint8_t* Y = data;
+  uint8_t* U = &(data[myyuv.width * myyuv.height]);
+  uint8_t* V = &(data[myyuv.width * myyuv.height * 5 / 4]);
+  int* U_huffman_ind = new int[myyuv.width * myyuv.height / 256];
+  int* V_huffman_ind = new int[myyuv.width * myyuv.height / 256];
+  int k = myyuv.width * myyuv.height;
+  int k_arr[2];
+  int saved_k_arr[2];
+  saved_k_arr[0] = k;
+  for (int i = 0; i < myyuv.width * myyuv.height / 256; i++) {
+    U_huffman_ind[i] = k - saved_k_arr[0];
+    k += myyuv.data[k] + 1;
+  }
+  //std::cout << k - saved_k_arr[0] << '\n';
+  k_arr[0] = k;
+  saved_k_arr[1] = k;
+  for (int i = 0; i < myyuv.width * myyuv.height / 256; i++) {
+    V_huffman_ind[i] = k - saved_k_arr[1];
+    k += myyuv.data[k] + 1;
+  }
+  //std::cout << k - saved_k_arr[1] << '\n';
+  k_arr[1] = k;
+  assert(k == myyuv.compressor.size);
+  #pragma omp parallel sections
+  {
+    #pragma omp section
+    {
+      std::copy(myyuv.data, myyuv.data + myyuv.width * myyuv.height, Y);
+    }
+    #pragma omp section
+    {
+      restoreDCTPane<8>(U, myyuv.data + saved_k_arr[0], k_arr[0] - saved_k_arr[0], U_huffman_ind, myyuv.width / 2, myyuv.height / 2, q[0], chroma_q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix_8
+#else
+        C_8, cos_table_8
+#endif
+      );
+    }
+    #pragma omp section
+    {
+      restoreDCTPane<8>(V, myyuv.data + saved_k_arr[1], k_arr[1] - saved_k_arr[1], V_huffman_ind, myyuv.width / 2, myyuv.height / 2, q[1], chroma_q_table,
+#ifdef USE_DCT_MATRIX_IMPLEMENTATION
+        DCT_matrix_8
+#else
+        C_8, cos_table_8
+#endif
+      );
+    }
+  }
   delete[] U_huffman_ind;
   delete[] V_huffman_ind;
   delete[] myyuv.data;
@@ -344,10 +635,10 @@ const std::map<std::string, std::function<void(YUVCompressor&, const std::vector
     assert(myyuv->width % 8 == 0);
     assert(myyuv->height % 8 == 0);
     assert(!myyuv->isCompressed());
-    uint8_t q[3] = { 85, 50, 50 };
+    uint8_t q[3] = { 50, 50, 50 };
     for (size_t i = 0; i < 3 && i < params.size(); i++) {
       try {
-        q[i] = std::clamp(std::stoi(params[i]), 0, 255);
+        q[i] = std::clamp(std::stoi(params[i]), 0, UINT8_MAX);
       } catch (std::invalid_argument const&) {
       } catch (std::out_of_range const&) {}
     }
@@ -363,9 +654,35 @@ const std::map<std::string, std::function<void(YUVCompressor&, const std::vector
     }
   }},
 #endif
+#ifdef USE_DCT_CHROMA
+  {"DCTChroma", [](YUVCompressor& compressor, const std::vector<std::string>& params)->void{
+    MyYUV* myyuv = compressor.yuv;
+    assert(myyuv->width % 8 == 0);
+    assert(myyuv->height % 8 == 0);
+    assert(!myyuv->isCompressed());
+    uint8_t q[2] = { 50, 50 };
+    for (size_t i = 0; i < 2 && i < params.size(); i++) {
+      try {
+        q[i] = std::clamp(std::stoi(params[i]), 0, UINT8_MAX);
+      } catch (std::invalid_argument const&) {
+      } catch (std::out_of_range const&) {}
+    }
+    switch (myyuv->format) {
+#ifdef USE_DCT_CHROMA_IYUV
+      case SDL_PIXELFORMAT_IYUV:
+        DST_CHROMA_IYUV_compress(*myyuv, q);
+        break;
+#endif
+      default:
+        throw std::runtime_error("Not implemented for that format yet");
+        break;
+    }
+  }},
+#endif
 };
 
 const std::map<std::string, std::function<void(YUVCompressor&)>> YUVCompressor::decompression_map {
+#ifdef USE_DCT
   {"DCT", [](YUVCompressor& compressor)->void{
     MyYUV* myyuv = compressor.yuv;
     assert(myyuv->width % 8 == 0);
@@ -381,6 +698,24 @@ const std::map<std::string, std::function<void(YUVCompressor&)>> YUVCompressor::
         break;
     }
   }},
+#endif
+#ifdef USE_DCT
+  {"DCTChroma", [](YUVCompressor& compressor)->void{
+    MyYUV* myyuv = compressor.yuv;
+    assert(myyuv->width % 8 == 0);
+    assert(myyuv->height % 8 == 0);
+    switch (myyuv->format) {
+#ifdef USE_DCT_IYUV
+      case SDL_PIXELFORMAT_IYUV:
+        DST_CHROMA_IYUV_decompress(*myyuv);
+        break;
+#endif
+      default:
+        throw std::runtime_error("Not implemented for that format yet");
+        break;
+    }
+  }},
+#endif
 };
 
 bool YUVCompressor::isCompressedType(const std::string& type) {
@@ -389,8 +724,7 @@ bool YUVCompressor::isCompressedType(const std::string& type) {
 
 void YUVCompressor::precompute() {
 #ifdef USE_DCT
-  //calculateDCTMatrix<4>(DCT_matrix_4);
-  calculateDCTMatrix<8>(DCT_matrix_8);
+  precomputeDCT();
 #endif
   done_precomputed = true;
 }
@@ -409,16 +743,32 @@ static std::map<std::string, std::function<void(void*)>> remove_data_decompress_
     delete[] reinterpret_cast<uint8_t*>(data);
   }},
 #endif
+#ifdef USE_DCT_CHROMA
+  {"DCTChroma", [](void* data)->void{
+    delete[] reinterpret_cast<uint8_t*>(data);
+  }},
+#endif
 };
 
-static std::map<std::string, std::function<void*(void*)>> clone_data_decompress_map = {
+static std::map<std::string, std::function<void*(void*, uint8_t)>> clone_data_decompress_map = {
 #ifdef USE_DCT
-  {"DCT", [](void* data)->void* {
+  {"DCT", [](void* data, uint8_t data_size)->void* {
+    assert(data_size == 3);
     uint8_t* cloned_data = new uint8_t[3];
     uint8_t* _data = reinterpret_cast<uint8_t*>(data);
     cloned_data[0] = _data[0];
     cloned_data[1] = _data[1];
     cloned_data[2] = _data[2];
+    return cloned_data;
+  }},
+#endif
+#ifdef USE_DCT_CHROMA
+  {"DCTChroma", [](void* data, uint8_t data_size)->void* {
+    assert(data_size == 2);
+    uint8_t* cloned_data = new uint8_t[2];
+    uint8_t* _data = reinterpret_cast<uint8_t*>(data);
+    cloned_data[0] = _data[0];
+    cloned_data[1] = _data[1];
     return cloned_data;
   }},
 #endif
@@ -428,7 +778,7 @@ void* YUVCompressor::cloneDataForDecompress() const {
   if (data_for_decompress) {
     auto search = clone_data_decompress_map.find(type);
     if (search != clone_data_decompress_map.end()) {
-      return search->second(data_for_decompress);
+      return search->second(data_for_decompress, data_for_decompress_size);
     } else {
       throw std::runtime_error("Can't clone data for decompress, unknown type");
     }

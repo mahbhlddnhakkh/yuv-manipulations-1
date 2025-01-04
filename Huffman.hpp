@@ -149,8 +149,9 @@ public:
     huffman.generateCanonicalTreeFromData();
     huffman.encoded_data_size = data[i++];
     huffman.encoded_data_size_extra_bits = data[i++];
-    assert(tree_data_size + huffman.encoded_data_size + (huffman.encoded_data_size_extra_bits > 0) + 3 <= size);
-    for (uint8_t j = 0; j < huffman.encoded_data_size + (huffman.encoded_data_size_extra_bits > 0); j++) {
+    assert(tree_data_size + huffman.encoded_data_size + static_cast<uint8_t>(huffman.encoded_data_size_extra_bits > 0) + 3 <= size);
+    uint8_t encoded_data_size_whole_bytes = huffman.encoded_data_size + static_cast<uint8_t>(huffman.encoded_data_size_extra_bits > 0);
+    for (uint8_t j = 0; j < encoded_data_size_whole_bytes; j++) {
       size_t _j = j * 8;
       std::bitset<8> tmp = data[i++];
       for (size_t jj = 0; jj < 8; jj++) {
@@ -206,10 +207,11 @@ public:
   void dump(uint8_t*& dat, uint8_t& size) {
     // 1 byte for tree code size chunk
     // each tree code: 1 byte for code length (1..9) and ch count (1..32) + ch count bytes
-    // 1 byte for message size
+    // 2 bytes for message size (1 byte for message size in bytes round down + 1 byte for extra bits)
     // message size bytes for message
+    // TODO: ch is 10 bits instead of 1 byte (8 bits)
     assert(msg_size <= 64 && "Not implemented for msg_size more than 64"); // effective for 64
-    size = 3 + encoded_data_size + (encoded_data_size_extra_bits > 0); // tree code size chunk + message size chunk + message
+    size = 3 + encoded_data_size + static_cast<uint8_t>(encoded_data_size_extra_bits > 0); // tree code size chunk + message size chunk + message
     for (auto it = tree_data.begin(); it != tree_data.end(); it++) {
       int tmp = it->second.size();
       if (tmp <= 32) {
@@ -221,9 +223,9 @@ public:
     }
     //std::cout << "Chunk size " << size << '\n';
     dat = new uint8_t[size];
-    assert(size - 3 - encoded_data_size - (encoded_data_size_extra_bits > 0) <= 255);
+    assert(size - 3 - encoded_data_size - static_cast<uint8_t>(encoded_data_size_extra_bits > 0) <= 255);
     uint8_t i = 0;
-    dat[i++] = size - 3 - encoded_data_size - (encoded_data_size_extra_bits > 0);
+    dat[i++] = size - 3 - encoded_data_size - static_cast<uint8_t>(encoded_data_size_extra_bits > 0);
     for (auto it = tree_data.begin(); it != tree_data.end(); it++) {
       auto& chs = it->second;
       assert(chs.size() <= 64);
@@ -245,15 +247,24 @@ temp_label:
     }
     dat[i++] = encoded_data_size;
     dat[i++] = encoded_data_size_extra_bits;
-    for (uint8_t j = 0; j < encoded_data_size + (encoded_data_size_extra_bits > 0); j++) {
+    const uint8_t encoded_data_size_whole_bytes = encoded_data_size + static_cast<uint8_t>(encoded_data_size_extra_bits > 0);
+    for (uint8_t j = 0; j < encoded_data_size_whole_bytes; j++) {
       std::bitset<8> tmp;
       size_t _j = j * 8;
       for (size_t jj = 0; jj < 8; jj++) {
         tmp.set(jj, encoded_data.test(_j + jj));
       }
-      dat[i++] = tmp.to_ulong();
+      dat[i++] = static_cast<uint8_t>(tmp.to_ulong());
     }
     //std::cout << "SIZE " << size << '\n';
+  }
+
+  uint8_t getEncodedSizeBytes() const {
+    return encoded_data_size + static_cast<uint8_t>(encoded_data_size_extra_bits > 0);
+  }
+
+  size_t getEncodedSizeBits() const {
+    return static_cast<size_t>(encoded_data_size) * 8 + encoded_data_size_extra_bits;
   }
 protected:
   std::map<uint8_t, std::set<int8_t>> tree_data;

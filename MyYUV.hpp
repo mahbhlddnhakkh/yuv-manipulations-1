@@ -17,6 +17,7 @@ public:
   static bool isFormatRGBA(const SDL_PixelFormat& format);
 public:
   MyYUV(MyYUV&& myyuv);
+  MyYUV& operator=(MyYUV&& myyuv);
   ~MyYUV();
   SDL_PixelFormat getPixelFormat() const;
   SDL_Surface* createSurface();
@@ -30,6 +31,7 @@ public:
   int getWidth() const;
   int getHeight() const;
   int getPitch() const;
+  uint8_t* getDataDebug() { return data; } // TODO: delete
 protected:
   int width = -1;
   int height = -1;

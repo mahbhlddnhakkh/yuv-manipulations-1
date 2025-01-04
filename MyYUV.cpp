@@ -82,6 +82,21 @@ MyYUV::MyYUV(MyYUV&& myyuv) : compressor(nullptr) {
   std::swap(compressor.data_for_decompress_size, myyuv.compressor.data_for_decompress_size);
 }
 
+MyYUV& MyYUV::operator=(MyYUV&& myyuv) {
+  std::swap(width, myyuv.width);
+  std::swap(height, myyuv.height);
+  std::swap(pitch, myyuv.pitch);
+  std::swap(format, myyuv.format);
+  std::swap(data, myyuv.data);
+  std::swap(size, myyuv.size);
+  compressor.yuv = this;
+  std::swap(compressor.type, myyuv.compressor.type);
+  std::swap(compressor.size, myyuv.compressor.size);
+  std::swap(compressor.data_for_decompress, myyuv.compressor.data_for_decompress);
+  std::swap(compressor.data_for_decompress_size, myyuv.compressor.data_for_decompress_size);
+  return *this;
+}
+
 MyYUV::~MyYUV() {
   compressor.yuv = nullptr;
   delete[] data;

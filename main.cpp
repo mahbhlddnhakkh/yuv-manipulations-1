@@ -12,14 +12,21 @@
 
 static std::string output_name;
 
-static int show_count = 1;
+static std::string commands_before_show;
+
+static int show_count = 0;
+
+static MyYUV* myyuv_backup;
 
 static std::vector<SDLWindowsYUV*> yuv_windows;
 
 static std::map<std::string, std::function<void(MyYUV&, std::vector<std::string>&)>> action_map = {
   {"show", [](MyYUV& myyuv, std::vector<std::string>&)->void{
-    yuv_windows.push_back(new SDLWindowsYUV(myyuv, output_name + " (" + std::to_string(show_count) + ")", myyuv.getWidth(), myyuv.getHeight()));
-    show_count++;
+    yuv_windows.push_back(new SDLWindowsYUV(myyuv, output_name + " " + commands_before_show + " (" + std::to_string(++show_count) + ")", myyuv.getWidth(), myyuv.getHeight()));
+    commands_before_show = "";
+  }},
+  {"reset", [](MyYUV& myyuv, std::vector<std::string>&)->void{
+    myyuv = myyuv_backup->clone();
   }},
 };
 
@@ -56,6 +63,7 @@ static void pre_test() {
   for (int j = 0; j < 8; j++) {
     for (int i = 0; i < 8; i++) {
       std::cout << (int)t[i + j * 8] << '\t';
+      assert(t[i + j * 8] == tmp[i + j * 8]);
     }
     std::cout << '\n';
   }
@@ -103,6 +111,7 @@ int main(int argc, char* argv[]) {
   std::cout << "\n\n";
   assert(argc > 2);
   MyYUV myyuv = MyYUV::from(argv[1], argv[2], argc > 3 ? argv[3] : "");
+  myyuv_backup = new MyYUV(myyuv.clone());
   int argi = std::string(argv[1]) == "YUV" ? 3 : 4;
   if (argi < argc) {
     output_name = argv[argi];
@@ -113,6 +122,12 @@ int main(int argc, char* argv[]) {
   const int argi_start = argi;
   for (; argi < argc; argi++) {
     std::cout << (argi - argi_start + 1) << ") " << argv[argi] << '\n';
+    if (std::string("show") != argv[argi]) {
+      if (!commands_before_show.empty()) {
+        commands_before_show += ";";
+      }
+      commands_before_show += argv[argi];
+    }
     std::string action = argv[argi];
     std::vector<std::string> params;
     size_t pos;
@@ -153,5 +168,6 @@ int main(int argc, char* argv[]) {
     SDL_Delay(40);
   }
   SDL_Quit();
+  delete myyuv_backup;
   return 0;
 }

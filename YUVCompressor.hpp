@@ -1,13 +1,18 @@
 #pragma once
 
-#include <SDL3/SDL.h>
 #include <map>
 #include <functional>
 #include <string>
 #include <vector>
+#include "YUVCompressorFeatures.hpp"
 
+#if defined(USE_DCT_CHROMA_IYUV)
+#define USE_DCT_CHROMA
+#endif
+
+#if defined (USE_DCT_IYUV) || defined (USE_DCT_CHROMA)
 #define USE_DCT
-#define USE_DCT_IYUV
+#endif
 
 class MyYUV;
 
@@ -17,9 +22,13 @@ public:
   static const std::map<std::string, std::function<void(YUVCompressor&)>> decompression_map;
   static bool isCompressedType(const std::string& type);
 public:
-#if defined (USE_DCT) && defined (USE_DCT_IYUV)
+#ifdef USE_DCT_IYUV
   static void DST_IYUV_compress(MyYUV& myyuv, const uint8_t q[3]);
   static void DST_IYUV_decompress(MyYUV& myyuv);
+#endif
+#ifdef USE_DCT_CHROMA_IYUV
+  static void DST_CHROMA_IYUV_compress(MyYUV& myyuv, const uint8_t q[2]);
+  static void DST_CHROMA_IYUV_decompress(MyYUV& myyuv);
 #endif
 public:
   static void precompute();

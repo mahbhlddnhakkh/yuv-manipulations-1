@@ -31,7 +31,6 @@ public:
   int getWidth() const;
   int getHeight() const;
   int getPitch() const;
-  uint8_t* getDataDebug() { return data; } // TODO: delete
 protected:
   int width = -1;
   int height = -1;

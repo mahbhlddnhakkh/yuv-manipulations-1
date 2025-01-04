@@ -187,6 +187,7 @@ int MyYUV::getPitch() const {
 uint8_t* MyYUV::getAYUVFromXRGB(const uint8_t* rgbx, const int& size) {
   assert(size % 4 == 0);
   uint8_t* yuv444 = new uint8_t[size];
+  #pragma omp parallel for
   for (int i = 0; i < size; i += 4) {
 #if SDL_BYTEORDER == SDL_BIG_ENDIAN
     const float R = static_cast<float>(rgbx[i]);

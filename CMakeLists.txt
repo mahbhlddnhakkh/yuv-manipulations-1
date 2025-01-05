@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 find_package(SDL3 REQUIRED)
 find_package(OpenMP REQUIRED)
-add_executable(${PROJECT_NAME} main.cpp MyYUV.cpp YUVCompressor.cpp YUVConverter.cpp MyUtil.cpp)
+add_executable(${PROJECT_NAME} main.cpp MyYUV.cpp YUVCompressor.cpp YUVConverter.cpp MyUtil.cpp SDLWindowsYUV.cpp)
 
 # for assert for RelWithDebInfo
 # https://stackoverflow.com/questions/22140520/how-to-enable-assert-in-cmake-release-mode/42119938#42119938

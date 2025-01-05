@@ -1,6 +1,5 @@
 #include "MyUtil.hpp"
 #include <cassert>
-#include <iostream>
 
 void pack11bit(uint8_t* packed_res, std::set<int16_t>::iterator& it, uint8_t count) {
   std::fill(packed_res, packed_res + (count * 11 + 7) / 8, 0);

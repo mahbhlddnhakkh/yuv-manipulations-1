@@ -237,8 +237,8 @@ static void restoreDCTPane(uint8_t* data, const uint8_t* huffman_data, const int
   }
 }
 
-extern void test_dct() {
-  float q = 50.0f;
+void YUVCompressor::test_dct() {
+  const float q = 50.0f;
   const float q_table_mul = (q >= 50.5f) ? (100.0f - q) / 50.0f : 50.0f / q;
   float q_table[64];
   for (int i = 0; i < 64; i++) {
@@ -294,7 +294,7 @@ extern void test_dct() {
   }
   for (int j = 0; j < 8; j++) {
     for (int i = 0; i < 8; i++) {
-      std::cout << (int)res[i + j * 8] << '\t';
+      std::cout << res[i + j * 8] << '\t';
     }
     std::cout << '\n';
   }

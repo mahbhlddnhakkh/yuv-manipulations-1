@@ -39,8 +39,6 @@ static void addCompressionToActionMap() {
   }
 }
 
-extern void test_dct();
-
 static void pre_test() {
   int16_t tmp[64];
   for (int i = 0; i < 64; i++) {
@@ -68,7 +66,7 @@ static void pre_test() {
     std::cout << '\n';
   }
   std::cout << "\n\nTEST DCT\n";
-  test_dct();
+  YUVCompressor::test_dct();
 }
 
 // Init stuff

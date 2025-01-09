@@ -26,7 +26,7 @@ MyYUV YUVConverter::convertFromAYUV(const std::string& type, const uint8_t* ayuv
 const std::map<std::string, std::function<MyYUV(const uint8_t* ayuv, const int& width, const int& height)>> YUVConverter::yuv_types_map = {
 /*
   {"NV12", [](const uint8_t* ayuv, const int& width, const int& height)->MyYUV{
-    const int new_size = width * height * 3 / 2; // width*height+(width/2)*height/2
+    const int new_size = width * height * 3 / 2; // width * height + width * height / 2
     uint8_t* pixels = new uint8_t[new_size];
     uint8_t* uv = &(pixels[width * height]);
     int k = 0;

@@ -22,6 +22,9 @@ public:
   static const std::map<std::string, std::function<void(YUVCompressor&)>> decompression_map;
   static bool isCompressedType(const std::string& type);
 public:
+#ifdef USE_DCT
+  static void test_dct();
+#endif
 #ifdef USE_DCT_IYUV
   static void DST_IYUV_compress(MyYUV& myyuv, const uint8_t q[3]);
   static void DST_IYUV_decompress(MyYUV& myyuv);

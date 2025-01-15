@@ -57,11 +57,6 @@ void squareMatrixMulT2(const float aT[size * size], const float b[size * size], 
   }
 }
 
-template<typename T>
-bool checkOverflowAdd(const T& a, const T& b) {
-  return !(b > std::numeric_limits<T>::max() - a);
-}
-
 void pack11bit(uint8_t* packed_res, std::set<int16_t>::iterator& it, uint8_t count);
 
 void unpack11bit(const uint8_t* packed_arr, std::set<int16_t>& res, uint8_t count);

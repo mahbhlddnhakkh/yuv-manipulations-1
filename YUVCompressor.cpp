@@ -117,7 +117,6 @@ static void applyDCTtoBlock(float data_block[DCT_matrix_size * DCT_matrix_size],
       res[i + j * DCT_matrix_size] = static_cast<int16_t>(std::round(D_ij / q_table[i + j * DCT_matrix_size]));
     }
   }
-  std::cout << val_max << ' ' << val_min << '\n';
 }
 #endif
 
